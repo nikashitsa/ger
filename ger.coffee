@@ -32,6 +32,18 @@ class GER
       filtered_recs
     )
 
+  filter_recommendations_extra: (namespace, recommendations, filter_actions) ->
+    recommended_things = _.uniq( (x.thing for x in recommendations) )
+    @esm.filter_things_by_actions(namespace, recommended_things, filter_actions)
+    .then( (filtered_recommendations) ->
+      filtered_recs = []
+      for rec in recommendations
+        if rec.thing in filtered_recommendations
+          filtered_recs.push rec
+
+      filtered_recs
+    )
+
   filter_similarities: (similarities) ->
     ns = {}
     for pt, weight of similarities
@@ -136,6 +148,13 @@ class GER
         @filter_recommendations(namespace, person, recommendations, configuration.filter_previous_actions)
       ])
     )
+    .spread( ( neighbourhood, similarities, recommendations ) =>
+      bb.all([
+        neighbourhood,
+        similarities,
+        @filter_recommendations_extra(namespace, recommendations, configuration.filter_actions)
+      ])
+    )
     .spread( (neighbourhood, similarities, recommendations) =>
       recommendations_object = {}
       recommendations_object.recommendations = @calculate_people_recommendations(similarities, recommendations, configuration)
@@ -189,6 +208,7 @@ class GER
       neighbourhood_size: 25,
       recommendations_per_neighbour: 5
       filter_previous_actions: [],
+      filter_actions: [],
       time_until_expiry: 0
       actions: {},
       current_datetime: new Date() #set the current datetime, useful for testing and ML,

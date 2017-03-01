@@ -271,6 +271,41 @@ class PSQLEventStoreManager
       (r.tthing for r in rows.rows)
     )
 
+  filter_things_by_actions: (namespace, things, actions) ->
+    return bb.try(-> things) if !actions or actions.length == 0 or things.length == 0
+
+    bindings = {}
+    action_values = []
+    for a, ai in actions
+      akey = "action_#{ai}"
+      bindings[akey] = a
+      action_values.push(" :#{akey} ")
+
+    action_values = action_values.join(',')
+
+    thing_values = []
+    for t, ti in things
+      tkey = "thing_#{ti}"
+      bindings[tkey] = t
+      thing_values.push "( :#{tkey} )"
+
+    thing_values = thing_values.join(", ")
+
+    things_rows = "(VALUES #{thing_values} ) AS t (tthing)"
+
+    filter_things_sql = @_knex("#{namespace}.events")
+    .select("thing")
+    .whereRaw("action in (#{action_values})")
+    .whereRaw("thing = t.tthing")
+    .toSQL()
+
+    query = "select tthing from #{things_rows} where not exists (#{filter_things_sql.sql})"
+
+    @_knex.raw(query, bindings)
+    .then( (rows) ->
+      (r.tthing for r in rows.rows)
+    )
+
   ##############################
   ##### RECENT EVENTS  #########
   ##############################
